@@ -133,16 +133,23 @@ def batch_transfer(endpoint_list, globus_endpoint_uuid, local_id):
     for each in endpoint_list:
         is_directory = False
         # We use "/" rather than os.sep because the file system for globus always uses "/"
-        full_path = each["rel_path"] + "/" + each["specific_path"].lstrip("/")
+        if each["specific_path"] == "/":
+            full_path = each["rel_path"] + "/"
+        else:
+            full_path = each["rel_path"] + "/" + each["specific_path"].lstrip("/")
         if os.path.basename(full_path) == "":
             is_directory = True
         if is_directory is False:
             line = f'"{full_path}"' + f" {os.path.basename(full_path)} \n"
         else:
-            slash_index = full_path.rstrip('/').rfind("/")
-            local_dir = full_path[slash_index:].rstrip('/')
-            local_dir.replace("/", os.sep)
-            line = f'"{full_path}"' + f" {local_dir} --recursive \n"
+            if each["specific_path"] != "/":
+                slash_index = full_path.rstrip('/').rfind("/")
+                local_dir = full_path[slash_index:].rstrip('/')
+                local_dir.replace("/", os.sep)
+                line = f'"{full_path}"' + f" {local_dir} --recursive \n"
+            else:
+                # Globus does not allow "/" as a destination directory. So we need to name it something.
+                local_dir = "globus_transfer"
         temp.write(line)
     temp.seek(0)
     # if running in a linux/posix environment, default folder will be ~/Downloads.
