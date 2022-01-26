@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import shlex
 import argparse
 import os.path
 import subprocess
@@ -13,8 +14,8 @@ INGEST_DEV_WEBSERVICE_URL = "https://ingest-api.dev.hubmapconsortium.org/"
 
 def main():
     # Configure the top level Parser
-    parser = argparse.ArgumentParser(description='Hubmap Command Line Transfer', usage='''
-        $ python main.py command
+    parser = argparse.ArgumentParser(prog='hubmap-clt', description='Hubmap Command Line Transfer', usage='''
+        $ hubmap-clt command
  
         List of commands:
             transfer    Transfer files and directories to local endpoint from information on a manifest file 
@@ -25,11 +26,13 @@ def main():
     subparsers = parser.add_subparsers()
 
     # Create Subparsers to give subcommands
-    parser_transfer = subparsers.add_parser('transfer', help='Initiate Globus Transfer from Manifest File')
-    parser_transfer.add_argument('manifest', type=str, help='Name of the manifest file including path if not located in'
-                                                            ' the current directory')
+    parser_transfer = subparsers.add_parser('transfer', help='Initiate Globus Transfer from a Manifest Text File')
+    parser_transfer.add_argument('manifest', type=str, help='Name of the Manifest File Including the Path if it is not '
+                                                            'Located in the Current Directory')
     parser_login = subparsers.add_parser('login', help='Initiates a Globus Login Through the Default Web Browser')
-    parser_whoami = subparsers.add_parser('whoami', help='Displays Information of the Currently Logged-In User')
+    parser_whoami = subparsers.add_parser('whoami', help='Displays Information of the Currently Logged-In User. If not '
+                                                         'Logged in, User will be Prompted to Log-In with "hubmap-clt '
+                                                         'login"')
 
     # Assign subparsers to their respective functions
     parser_transfer.set_defaults(func=transfer)
@@ -65,7 +68,7 @@ def transfer(args):
     # Verify that the endpoint is connected
     endpoint_show_process = subprocess.Popen(["globus", "endpoint", "show", local_id], stdout=subprocess.PIPE)
     endpoint_show = endpoint_show_process.communicate()[0].decode('utf-8')
-    if endpoint_show_process.returncode !=0:
+    if endpoint_show_process.returncode != 0:
         print(endpoint_show)
         sys.exit(1)
     endpoint_connected = False
@@ -87,38 +90,34 @@ def transfer(args):
     id_list = []
     manifest_dict = {}
     for x in f:
-        line = x.split()
-        if len(line) != 2:
-            print(f"There are entries in {file_name} that contain more or fewer than 2 entries.\n"
-                  f"Each line on the manifest must be the id for the dataset/upload, followed by its path and \n"
-                  f"separated with a space. Example: HBM744.FNLN.846 /expr.h5ad")
-            sys.exit(1)
-        id_list.append(line[0].strip('"'))
-        manifest_dict[line[0].strip('"')] = line[1].strip('"')
-
+        if x != "":
+            try:
+                line = shlex.split(x)
+            except ValueError:
+                print(f"There was a problem with one of the entries in {file_name} such as a hanging quotation mark."
+                      f"Please review {file_name} and check for any formatting errors")
+                sys.exit(1)
+            if len(line) != 2:
+                print(f"There are entries in {file_name} that contain more or fewer than 2 entries.\n"
+                      f"Each line on the manifest must be the id for the dataset/upload, followed by its path and \n"
+                      f"separated with a space. Example: HBM744.FNLN.846 /expr.h5ad")
+                sys.exit(1)
+            id_list.append(line[0].strip('"'))
+            manifest_dict[line[0].strip('"')] = line[1].strip('"')
+    if len(id_list) == 0:
+        print(f"File {file_name} contained nothing or only blank lines. \n"
+              f"Each line on the manifest must be the id for the dataset/upload, followed by its path and \n"
+              f"separated with a space. Example: HBM744.FNLN.846 /expr.h5ad")
+        sys.exit(1)
     # send the list of uuid's to the ingest webservice to retrieve the endpoint uuid and relative path.
-    #r = requests.get(f"{INGEST_DEV_WEBSERVICE_URL}/datasets/rel-path", json=id_list)
-    #path_json = r.json()
-    path_json = [
-        {
-            "entity_type": "Dataset",
-            "globus_endpoint_uuid": "ff1bd56e-2e65-4ec9-86fa-f79422884e96",
-            "id": "02809d1028ddf24a3d96cddd28ada2c7",
-            "rel_path": "/consortium/University of California San Diego TMC/02809d1028ddf24a3d96cddd28ada2c7"
-        },
-        {
-            "entity_type": "Dataset",
-            "globus_endpoint_uuid": "2b82f085-1d50-4c93-897e-cd79d77481ed",
-            "id": "HBM825.NZXG.447",
-            "rel_path": "/f1178f3de96e62fe54093f6cdcee753c"
-        }
-    ]
+    r = requests.post(f"{INGEST_DEV_WEBSERVICE_URL}entities/file-system-rel-path", json=id_list)
+    path_json = r.json()
     # Create a list of the unique endpoint uuid's. For each entry in the list, a separate call to globus transfer
     # must be made
     unique_globus_endpoint_ids = []
     # Add the particular path from manifest_dict into path_dict
     for each in path_json:
-        each["specific_path"] = manifest_dict[each['id'].strip('"')].strip('"')
+        each["specific_path"] = manifest_dict[each['id']].strip('"')
         if each["globus_endpoint_uuid"] not in unique_globus_endpoint_ids:
             unique_globus_endpoint_ids.append(each["globus_endpoint_uuid"])
     for each in unique_globus_endpoint_ids:
@@ -130,38 +129,58 @@ def transfer(args):
 
 
 def batch_transfer(endpoint_list, globus_endpoint_uuid, local_id):
-    temp = tempfile.TemporaryFile(mode='w+t')
+    temp = tempfile.NamedTemporaryFile(mode='w+t')
     for each in endpoint_list:
-        line = ""
         is_directory = False
-        full_path = each["rel_path"] + each["specific_path"]
+        # We use "/" rather than os.sep because the file system for globus always uses "/"
+        full_path = each["rel_path"] + "/" + each["specific_path"].lstrip("/")
         if os.path.basename(full_path) == "":
             is_directory = True
         if is_directory is False:
-            line = f'"{full_path}"' + f" {os.path.basename(full_path)}"
+            line = f'"{full_path}"' + f" {os.path.basename(full_path)} \n"
         else:
             slash_index = full_path.rstrip('/').rfind("/")
             local_dir = full_path[slash_index:].rstrip('/')
-            # right now, local_dir is might be a trailing slash when it shouldn't be
-            line = f'"{full_path}"' + f" {local_dir} --recursive"
+            local_dir.replace("/", os.sep)
+            line = f'"{full_path}"' + f" {local_dir} --recursive \n"
         temp.write(line)
     temp.seek(0)
-    globus_transfer_process = subprocess.Popen(["globus", "transfer", globus_endpoint_uuid, local_id, "--batch"],
-                                               stdout=subprocess.PIPE)
+    # if running in a linux/posix environment, default folder will be ~/Downloads.
+    # if not, don't specify the target directory. Will need to add implementation for other OS's
+    if os.name == 'posix':
+        globus_transfer_process = subprocess.Popen(["globus", "transfer", globus_endpoint_uuid,
+                                                    f"{local_id}:~/Downloads", "--batch", temp.name],
+                                                   stdout=subprocess.PIPE)
+    else:
+        globus_transfer_process = subprocess.Popen(["globus", "transfer", globus_endpoint_uuid,
+                                                    f"{local_id}", "--batch", temp.name],
+                                                   stdout=subprocess.PIPE)
     globus_transfer = globus_transfer_process.communicate()[0].decode('utf-8')
     if globus_transfer_process.returncode != 0:
         print(globus_transfer)
         sys.exit(1)
+    print(globus_transfer)
+    temp.close()
+
 
 def whoami(args):
-    subprocess.run(["globus", "whoami"])
+    # Makes the command "globus whoami". If the user is logged in, their identity will be printed. If they are not
+    # Logged in, they will be prompted to use the command "hubmap-clt login"
+    whoami_process = subprocess.Popen(["globus", "whoami"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    whoami_show = whoami_process.communicate()[0].decode('utf-8')
+    if whoami_process.returncode == 0:
+        print(whoami_show)
+    else:
+        print(f"MissingLoginError: Missing login for auth.globus.org, please run \n\n \thubmap-cli login\n")
 
 
 def login(args):
+    # Forces a login to globus through the default web browser
     subprocess.run(["globus", "login", "--force"])
 
 
 def base_case(args, parser):
+    # If no sub-commands are given, the help and usage information will be displayed
     parser.print_help()
 
 
