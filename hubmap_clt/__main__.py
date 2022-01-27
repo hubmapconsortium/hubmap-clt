@@ -10,7 +10,7 @@ import tempfile
 from os.path import exists
 
 # Constants
-INGEST_DEV_WEBSERVICE_URL = "https://ingest-api.dev.hubmapconsortium.org/"
+INGEST_DEV_WEBSERVICE_URL = "https://ingest.api.hubmapconsortium.org/"
 
 def main():
     # Configure the top level Parser
@@ -29,6 +29,11 @@ def main():
     parser_transfer = subparsers.add_parser('transfer', help='Initiate Globus Transfer from a Manifest Text File')
     parser_transfer.add_argument('manifest', type=str, help='Name of the Manifest File Including the Path if it is not '
                                                             'Located in the Current Directory')
+    parser_transfer.add_argument('--destination', help='Specify a Destination for Globus Files/Directories to be '
+                                                       'Downloaded. Defaults to the Downloads Directory. Desetination '
+                                                       'Should Start from the Root Directory. For Example: '
+                                                       '"$ hubmap-clt transfer manifest.txt globus-files/data"',
+                                 default='Downloads')
     parser_login = subparsers.add_parser('login', help='Initiates a Globus Login Through the Default Web Browser')
     parser_whoami = subparsers.add_parser('whoami', help='Displays Information of the Currently Logged-In User. If not '
                                                          'Logged in, User will be Prompted to Log-In with "hubmap-clt '
@@ -125,10 +130,10 @@ def transfer(args):
         for item in path_json:
             if item["globus_endpoint_uuid"] == each:
                 endpoint_list.append(item)
-        batch_transfer(endpoint_list, each, local_id)
+        batch_transfer(endpoint_list, each, local_id, args)
 
 
-def batch_transfer(endpoint_list, globus_endpoint_uuid, local_id):
+def batch_transfer(endpoint_list, globus_endpoint_uuid, local_id, args):
     temp = tempfile.NamedTemporaryFile(mode='w+t')
     for each in endpoint_list:
         is_directory = False
@@ -140,28 +145,21 @@ def batch_transfer(endpoint_list, globus_endpoint_uuid, local_id):
         if os.path.basename(full_path) == "":
             is_directory = True
         if is_directory is False:
-            line = f'"{full_path}"' + f" {os.path.basename(full_path)} \n"
+            line = f'"{full_path}"' + f" ~/{args.destination}/{os.path.basename(full_path)} \n"
         else:
             if each["specific_path"] != "/":
                 slash_index = full_path.rstrip('/').rfind("/")
                 local_dir = full_path[slash_index:].rstrip('/')
                 local_dir.replace("/", os.sep)
-                line = f'"{full_path}"' + f" {local_dir} --recursive \n"
             else:
-                # Globus does not allow "/" as a destination directory. So we need to name it something.
-                local_dir = "globus_transfer"
+                local_dir = os.sep
+            line = f'"{full_path}"' + f" ~/{args.destination}{local_dir} --recursive \n"
         temp.write(line)
     temp.seek(0)
     # if running in a linux/posix environment, default folder will be ~/Downloads.
     # if not, don't specify the target directory. Will need to add implementation for other OS's
-    if os.name == 'posix':
-        globus_transfer_process = subprocess.Popen(["globus", "transfer", globus_endpoint_uuid,
-                                                    f"{local_id}:~/Downloads", "--batch", temp.name],
-                                                   stdout=subprocess.PIPE)
-    else:
-        globus_transfer_process = subprocess.Popen(["globus", "transfer", globus_endpoint_uuid,
-                                                    f"{local_id}", "--batch", temp.name],
-                                                   stdout=subprocess.PIPE)
+    globus_transfer_process = subprocess.Popen(["globus", "transfer", globus_endpoint_uuid, local_id, "--batch",
+                                                temp.name], stdout=subprocess.PIPE)
     globus_transfer = globus_transfer_process.communicate()[0].decode('utf-8')
     if globus_transfer_process.returncode != 0:
         print(globus_transfer)
