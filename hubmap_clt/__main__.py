@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+import json
 import shlex
 import argparse
 import os.path
@@ -94,21 +94,24 @@ def transfer(args):
     # webservice back to the manifest entry it came from.
     id_list = []
     manifest_dict = {}
+    line_count = 0
     for x in f:
-        if x != "":
-            try:
-                line = shlex.split(x)
-            except ValueError:
-                print(f"There was a problem with one of the entries in {file_name} such as a hanging quotation mark."
-                      f"Please review {file_name} and check for any formatting errors")
-                sys.exit(1)
-            if len(line) != 2:
-                print(f"There are entries in {file_name} that contain more or fewer than 2 entries.\n"
-                      f"Each line on the manifest must be the id for the dataset/upload, followed by its path and \n"
-                      f"separated with a space. Example: HBM744.FNLN.846 /expr.h5ad")
-                sys.exit(1)
-            id_list.append(line[0].strip('"'))
-            manifest_dict[line[0].strip('"')] = line[1].strip('"')
+        if line_count != 0:
+            if x != "":
+                try:
+                    line = shlex.split(x)
+                except ValueError:
+                    print(f"There was a problem with one of the entries in {file_name} such as a hanging quotation mark."
+                          f"Please review {file_name} and check for any formatting errors")
+                    sys.exit(1)
+                # if len(line) != 2:
+                #     print(f"There are entries in {file_name} that contain more or fewer than 2 entries.\n"
+                #           f"Each line on the manifest must be the id for the dataset/upload, followed by its path and \n"
+                #           f"separated with a space. Example: HBM744.FNLN.846 /expr.h5ad")
+                #     sys.exit(1)
+                id_list.append(line[0].strip('"'))
+                manifest_dict[line[0].strip('"')] = line[1].strip('"')
+        line_count = line_count + 1
     if len(id_list) == 0:
         print(f"File {file_name} contained nothing or only blank lines. \n"
               f"Each line on the manifest must be the id for the dataset/upload, followed by its path and \n"
@@ -116,7 +119,13 @@ def transfer(args):
         sys.exit(1)
     # send the list of uuid's to the ingest webservice to retrieve the endpoint uuid and relative path.
     r = requests.post(f"{INGEST_DEV_WEBSERVICE_URL}entities/file-system-rel-path", json=id_list)
-    path_json = r.json()
+    try:
+        path_json = r.json()
+    except ValueError:
+        print(f"One or more ID's in the manifest file were invalid. Review the manifest file. The first item "
+              f"in each line must be an ID (UUID or HuBMAP ID) \nAnd the second item will be the specific path to a "
+              f"file or directory within the given ID. All other entries on a given line are ignored")
+        sys.exit(1)
     # Create a list of the unique endpoint uuid's. For each entry in the list, a separate call to globus transfer
     # must be made
     unique_globus_endpoint_ids = []
