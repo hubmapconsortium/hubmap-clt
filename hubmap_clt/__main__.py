@@ -14,15 +14,7 @@ INGEST_DEV_WEBSERVICE_URL = "https://ingest.api.hubmapconsortium.org/"
 
 def main():
     # Configure the top level Parser
-    parser = argparse.ArgumentParser(prog='hubmap-clt', description='Hubmap Command Line Transfer', usage='''
-        $ hubmap-clt command
- 
-        List of commands:
-            transfer    Transfer files and directories to local endpoint from information on a manifest file 
-            login       Login to Globus via the default web browser
-            whoami      Show information about the currently logged in user if logged in
- 
-    ''')
+    parser = argparse.ArgumentParser(prog='hubmap-clt', description='Hubmap Command Line Transfer')
     subparsers = parser.add_subparsers()
 
     # Create Subparsers to give subcommands
@@ -94,9 +86,8 @@ def transfer(args):
     # webservice back to the manifest entry it came from.
     id_list = []
     manifest_dict = {}
-    line_count = 0
     for x in f:
-        if line_count != 0:
+        if x.startswith("dataset_id") is False:
             if x != "":
                 try:
                     line = shlex.split(x)
@@ -111,7 +102,6 @@ def transfer(args):
                 #     sys.exit(1)
                 id_list.append(line[0].strip('"'))
                 manifest_dict[line[0].strip('"')] = line[1].strip('"')
-        line_count = line_count + 1
     if len(id_list) == 0:
         print(f"File {file_name} contained nothing or only blank lines. \n"
               f"Each line on the manifest must be the id for the dataset/upload, followed by its path and \n"
