@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
+import re
 import json
-import shlex
 import argparse
 import os.path
 import subprocess
@@ -8,33 +8,35 @@ import sys
 import requests
 import tempfile
 from os.path import exists
+from pathlib import Path
 
 # Constants
-INGEST_DEV_WEBSERVICE_URL = "https://ingest.api.hubmapconsortium.org/"
+INGEST_DEV_WEBSERVICE_URL = "https://ingest-api.dev.hubmapconsortium.org/"
+
 
 def main():
+    # Import help text from file
+    p = Path(__file__).with_name("clt-help.txt")
+    with p.open() as file:
+        help_text = file.read()
+
     # Configure the top level Parser
-    parser = argparse.ArgumentParser(prog='hubmap-clt', description='Hubmap Command Line Transfer')
+    parser = argparse.ArgumentParser(prog='hubmap-clt', description='Hubmap Command Line Transfer', usage=help_text)
     subparsers = parser.add_subparsers()
 
     # Create Subparsers to give subcommands
-    parser_transfer = subparsers.add_parser('transfer', help='Initiate Globus Transfer from a Manifest Text File')
-    parser_transfer.add_argument('manifest', type=str, help='Name of the Manifest File Including the Path if it is not '
-                                                            'Located in the Current Directory')
-    parser_transfer.add_argument('--destination', help='Specify a Destination for Globus Files/Directories to be '
-                                                       'Downloaded. Defaults to the Downloads Directory. Desetination '
-                                                       'Should Start from the Root Directory. For Example: '
-                                                       '"$ hubmap-clt transfer manifest.txt globus-files/data"',
-                                 default='Downloads')
-    parser_login = subparsers.add_parser('login', help='Initiates a Globus Login Through the Default Web Browser')
-    parser_whoami = subparsers.add_parser('whoami', help='Displays Information of the Currently Logged-In User. If not '
-                                                         'Logged in, User will be Prompted to Log-In with "hubmap-clt '
-                                                         'login"')
+    parser_transfer = subparsers.add_parser('transfer', usage=help_text, help=None)
+    parser_transfer.add_argument('manifest', type=str)
+    parser_transfer.add_argument('-d', '--destination', default=None, type=str)
+    parser_login = subparsers.add_parser('login', usage=help_text, help=None)
+    parser_whoami = subparsers.add_parser('whoami', usage=help_text, help=None)
+    parser_logout = subparsers.add_parser('logout', usage=help_text, help=None)
 
     # Assign subparsers to their respective functions
     parser_transfer.set_defaults(func=transfer)
     parser_login.set_defaults(func=login)
     parser_whoami.set_defaults(func=whoami)
+    parser_logout.set_defaults(func=logout)
     parser.set_defaults(func=base_case)
 
     # Parse the arguments and call appropriate functions
@@ -45,8 +47,9 @@ def main():
         args.func(args)
 
 
-# This is the primary function of the hubmap_clt. Accepts a single argument which is the path/name of a manifest file.
-# A transfer is initiated from the uuid's and paths located within the file.
+# This is the primary function of the hubmap_clt. Accepts a single mandatory argument which is the path/name of a
+# manifest file. A transfer is initiated from the uuid's and paths located within the file. Also accepts an optional
+# arguments --destination or -d which chooses a specific download location
 def transfer(args):
     # Verify existence of the manifest file
     file_name = args.manifest
@@ -88,20 +91,15 @@ def transfer(args):
     manifest_dict = {}
     for x in f:
         if x.startswith("dataset_id") is False:
-            if x != "":
-                try:
-                    line = shlex.split(x)
-                except ValueError:
-                    print(f"There was a problem with one of the entries in {file_name} such as a hanging quotation mark."
-                          f"Please review {file_name} and check for any formatting errors")
+            if x != "" and x != "\n":
+                pattern = '^(\S+)[ \t]+([^\t]+)'
+                matches = re.search(pattern, x)
+                if matches is None:
+                    print(f"There was a problem with one of the entries in {file_name}. Please review {file_name} and "
+                          f"for any formatting errors")
                     sys.exit(1)
-                # if len(line) != 2:
-                #     print(f"There are entries in {file_name} that contain more or fewer than 2 entries.\n"
-                #           f"Each line on the manifest must be the id for the dataset/upload, followed by its path and \n"
-                #           f"separated with a space. Example: HBM744.FNLN.846 /expr.h5ad")
-                #     sys.exit(1)
-                id_list.append(line[0].strip('"'))
-                manifest_dict[line[0].strip('"')] = line[1].strip('"')
+                id_list.append(matches.group(1).strip('"'))
+                manifest_dict[matches.group(1).strip('"')] = matches.group(2).strip('"')
     if len(id_list) == 0:
         print(f"File {file_name} contained nothing or only blank lines. \n"
               f"Each line on the manifest must be the id for the dataset/upload, followed by its path and \n"
@@ -109,12 +107,11 @@ def transfer(args):
         sys.exit(1)
     # send the list of uuid's to the ingest webservice to retrieve the endpoint uuid and relative path.
     r = requests.post(f"{INGEST_DEV_WEBSERVICE_URL}entities/file-system-rel-path", json=id_list)
-    try:
-        path_json = r.json()
-    except ValueError:
-        print(f"One or more ID's in the manifest file were invalid. Review the manifest file. The first item "
-              f"in each line must be an ID (UUID or HuBMAP ID) \nAnd the second item will be the specific path to a "
-              f"file or directory within the given ID. All other entries on a given line are ignored")
+    path_json = r.json()
+    if r.status_code != 200:
+        print(f"There were problems with {len(path_json)} dataset id's in {file_name}:\n")
+        for each in path_json:
+            print(f"{each['id']}: {each['message']} \n")
         sys.exit(1)
     # Create a list of the unique endpoint uuid's. For each entry in the list, a separate call to globus transfer
     # must be made
@@ -143,16 +140,23 @@ def batch_transfer(endpoint_list, globus_endpoint_uuid, local_id, args):
             full_path = each["rel_path"] + "/" + each["specific_path"].lstrip("/")
         if os.path.basename(full_path) == "":
             is_directory = True
+        print(is_directory)
         if is_directory is False:
-            line = f'"{full_path}"' + f" ~/{args.destination}/{os.path.basename(full_path)} \n"
+            if args.destination is not None:
+                line = f'"{full_path}" ~/{args.destination}/{each["hubmap_id"]}-{each["uuid"]}/{os.path.basename(full_path)} \n'
+            else:
+                line = f'"{full_path}" ~/hubmap-downloads/{each["hubmap_id"]}-{each["uuid"]}/{os.path.basename(full_path)} \n'
         else:
             if each["specific_path"] != "/":
                 slash_index = full_path.rstrip('/').rfind("/")
-                local_dir = full_path[slash_index:].rstrip('/')
+                local_dir = full_path[slash_index:].rstrip().rstrip('/')
                 local_dir.replace("/", os.sep)
             else:
                 local_dir = os.sep
-            line = f'"{full_path}"' + f" ~/{args.destination}{local_dir} --recursive \n"
+            if args.destination is not None:
+                line = f'"{full_path}" ~/{args.destination}/{each["hubmap_id"]}-{each["uuid"]}/{local_dir} --recursive \n'
+            else:
+                line = f'"{full_path}" ~/hubmap-downloads/{each["hubmap_id"]}-{each["uuid"]}/{local_dir} --recursive \n'
         temp.write(line)
     temp.seek(0)
     # if running in a linux/posix environment, default folder will be ~/Downloads.
@@ -180,7 +184,21 @@ def whoami(args):
 
 def login(args):
     # Forces a login to globus through the default web browser
-    subprocess.run(["globus", "login", "--force"])
+    print("You are running 'hubmap-clt login', which should automatically open a browser window for you to login. \n \n")
+    login_process = subprocess.Popen(["globus", "login", "--force"], stdout=subprocess.PIPE)
+    login_process.wait()
+    print('You have successfully logged in to the HuBMAP Command-Line Transfer! You can check your primary identity'
+          ' with hubmap-clt whoami.\n Logout of the HuBMAP Command-Line Transfer with hubmap-clt logout')
+    login_process.communicate()[0].decode('utf-8')
+
+
+def logout(args):
+    # Logs the user out of globus
+    logout_process = subprocess.Popen(["globus", "logout"], stdout=subprocess.PIPE)
+    print("Are you sure you want to logout? [y/N]:")
+    logout_process.wait()
+    print("\nYou are now successfully logged out of the HuBMAP Command-Line Transfer.")
+    logout_process.communicate()[0].decode('utf-8')
 
 
 def base_case(args, parser):
