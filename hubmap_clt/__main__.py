@@ -25,12 +25,12 @@ def main():
     subparsers = parser.add_subparsers()
 
     # Create Subparsers to give subcommands
-    parser_transfer = subparsers.add_parser('transfer', usage=help_text, help=None)
+    parser_transfer = subparsers.add_parser('transfer', prog='hubmap-clt-transfer', usage=help_text, help=None)
     parser_transfer.add_argument('manifest', type=str)
-    parser_transfer.add_argument('-d', '--destination', default=None, type=str)
-    parser_login = subparsers.add_parser('login', usage=help_text, help=None)
-    parser_whoami = subparsers.add_parser('whoami', usage=help_text, help=None)
-    parser_logout = subparsers.add_parser('logout', usage=help_text, help=None)
+    parser_transfer.add_argument('-d', '--destination', default='hubmap-downloads', type=str)
+    parser_login = subparsers.add_parser('login', usage=help_text, help=None, prog='hubmap-clt-login')
+    parser_whoami = subparsers.add_parser('whoami', usage=help_text, help=None, prog='hubmap-clt-whoami')
+    parser_logout = subparsers.add_parser('logout', usage=help_text, help=None, prog='hubmap-clt-logout')
 
     # Assign subparsers to their respective functions
     parser_transfer.set_defaults(func=transfer)
@@ -92,7 +92,7 @@ def transfer(args):
     for x in f:
         if x.startswith("dataset_id") is False:
             if x != "" and x != "\n":
-                pattern = '^(\S+)[ \t]+([^\t]+)'
+                pattern = '^(\S+)[ \t]+([^\t\n]+)'
                 matches = re.search(pattern, x)
                 if matches is None:
                     print(f"There was a problem with one of the entries in {file_name}. Please review {file_name} and "
@@ -118,7 +118,7 @@ def transfer(args):
     unique_globus_endpoint_ids = []
     # Add the particular path from manifest_dict into path_dict
     for each in path_json:
-        each["specific_path"] = manifest_dict[each['id']].strip('"')
+        each["specific_path"] = manifest_dict[each['id']].strip('"').strip()
         if each["globus_endpoint_uuid"] not in unique_globus_endpoint_ids:
             unique_globus_endpoint_ids.append(each["globus_endpoint_uuid"])
     for each in unique_globus_endpoint_ids:
@@ -140,12 +140,8 @@ def batch_transfer(endpoint_list, globus_endpoint_uuid, local_id, args):
             full_path = each["rel_path"] + "/" + each["specific_path"].lstrip("/")
         if os.path.basename(full_path) == "":
             is_directory = True
-        print(is_directory)
         if is_directory is False:
-            if args.destination is not None:
-                line = f'"{full_path}" ~/{args.destination}/{each["hubmap_id"]}-{each["uuid"]}/{os.path.basename(full_path)} \n'
-            else:
-                line = f'"{full_path}" ~/hubmap-downloads/{each["hubmap_id"]}-{each["uuid"]}/{os.path.basename(full_path)} \n'
+            line = f'"{full_path}" ~/{args.destination}/{each["hubmap_id"]}-{each["uuid"]}/{os.path.basename(full_path)} \n'
         else:
             if each["specific_path"] != "/":
                 slash_index = full_path.rstrip('/').rfind("/")
@@ -154,9 +150,9 @@ def batch_transfer(endpoint_list, globus_endpoint_uuid, local_id, args):
             else:
                 local_dir = os.sep
             if args.destination is not None:
-                line = f'"{full_path}" ~/{args.destination}/{each["hubmap_id"]}-{each["uuid"]}/{local_dir} --recursive \n'
+                line = f'"{full_path}" ~/{args.destination}/{each["hubmap_id"]}-{each["uuid"]}/{local_dir.lstrip(os.sep)} --recursive \n'
             else:
-                line = f'"{full_path}" ~/hubmap-downloads/{each["hubmap_id"]}-{each["uuid"]}/{local_dir} --recursive \n'
+                line = f'"{full_path}" ~/hubmap-downloads/{each["hubmap_id"]}-{each["uuid"]}/{local_dir.lstrip(os.sep)} --recursive \n'
         temp.write(line)
     temp.seek(0)
     # if running in a linux/posix environment, default folder will be ~/Downloads.
@@ -203,7 +199,7 @@ def logout(args):
 
 def base_case(args, parser):
     # If no sub-commands are given, the help and usage information will be displayed
-    parser.print_help()
+    parser.print_usage()
 
 
 if __name__ == '__main__':
