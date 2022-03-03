@@ -11,7 +11,7 @@ from os.path import exists
 from pathlib import Path
 
 # Constants
-INGEST_DEV_WEBSERVICE_URL = "https://ingest-api.dev.hubmapconsortium.org/"
+INGEST_DEV_WEBSERVICE_URL = "https://ingest.api.hubmapconsortium.org/"
 
 
 def main():
@@ -88,7 +88,7 @@ def transfer(args):
     # A list of the ID's is necessary to send to the ingest webservice. The dictionary is used to map the output of the
     # webservice back to the manifest entry it came from.
     id_list = []
-    manifest_dict = {}
+    manifest_list = []
     for x in f:
         if x.startswith("dataset_id") is False:
             if x != "" and x != "\n":
@@ -98,8 +98,10 @@ def transfer(args):
                     print(f"There was a problem with one of the entries in {file_name}. Please review {file_name} and "
                           f"for any formatting errors")
                     sys.exit(1)
+                manifest_dict = {}
                 id_list.append(matches.group(1).strip('"'))
                 manifest_dict[matches.group(1).strip('"')] = matches.group(2).strip('"')
+                manifest_list.append(manifest_dict)
     if len(id_list) == 0:
         print(f"File {file_name} contained nothing or only blank lines. \n"
               f"Each line on the manifest must be the id for the dataset/upload, followed by its path and \n"
@@ -118,7 +120,12 @@ def transfer(args):
     unique_globus_endpoint_ids = []
     # Add the particular path from manifest_dict into path_dict
     for each in path_json:
-        each["specific_path"] = manifest_dict[each['id']].strip('"').strip()
+        each_dict = {}
+        for item in manifest_list:
+            if each['id'] in item.keys():
+                each_dict = item
+                manifest_list.remove(item)
+        each["specific_path"] = each_dict[each['id']].strip('"').strip()
         if each["globus_endpoint_uuid"] not in unique_globus_endpoint_ids:
             unique_globus_endpoint_ids.append(each["globus_endpoint_uuid"])
     for each in unique_globus_endpoint_ids:
@@ -149,10 +156,7 @@ def batch_transfer(endpoint_list, globus_endpoint_uuid, local_id, args):
                 local_dir.replace("/", os.sep)
             else:
                 local_dir = os.sep
-            if args.destination is not None:
-                line = f'"{full_path}" ~/{args.destination}/{each["hubmap_id"]}-{each["uuid"]}/{local_dir.lstrip(os.sep)} --recursive \n'
-            else:
-                line = f'"{full_path}" ~/hubmap-downloads/{each["hubmap_id"]}-{each["uuid"]}/{local_dir.lstrip(os.sep)} --recursive \n'
+            line = f'"{full_path}" ~/{args.destination}/{each["hubmap_id"]}-{each["uuid"]}/{local_dir.lstrip(os.sep)} --recursive \n'
         temp.write(line)
     temp.seek(0)
     # if running in a linux/posix environment, default folder will be ~/Downloads.
