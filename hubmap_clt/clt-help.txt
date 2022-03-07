@@ -1,4 +1,4 @@
-hubmap-clt [-h | --help] [transfer manifest-file | login | whoami]
+hubmap-clt [-h | --help] [transfer manifest-file | login | logout | whoami]
 
 HuBMAP Command Line Transfer
 

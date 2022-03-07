@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import re
-import json
 import argparse
 import os.path
 import subprocess
@@ -37,14 +36,14 @@ def main():
     parser_login.set_defaults(func=login)
     parser_whoami.set_defaults(func=whoami)
     parser_logout.set_defaults(func=logout)
-    parser.set_defaults(func=base_case)
 
     # Parse the arguments and call appropriate functions
+    if len(sys.argv) == 1 or '-h' in sys.argv or '--help' in sys.argv:
+        print("usage: ", end="")
+        print(help_text)
+        sys.exit(0)
     args = parser.parse_args()
-    if len(sys.argv) == 1:
-        args.func(args, parser)
-    else:
-        args.func(args)
+    args.func(args)
 
 
 # This is the primary function of the hubmap_clt. Accepts a single mandatory argument which is the path/name of a
@@ -92,7 +91,7 @@ def transfer(args):
     for x in f:
         if x.startswith("dataset_id") is False:
             if x != "" and x != "\n":
-                pattern = '^(\S+)[ \t]+([^\t\n]+)'
+                pattern = '^(\\S+)[ \t]+([^\t\n]+)'
                 matches = re.search(pattern, x)
                 if matches is None:
                     print(f"There was a problem with one of the entries in {file_name}. Please review {file_name} and "
@@ -199,11 +198,6 @@ def logout(args):
     logout_process.wait()
     print("\nYou are now successfully logged out of the HuBMAP Command-Line Transfer.")
     logout_process.communicate()[0].decode('utf-8')
-
-
-def base_case(args, parser):
-    # If no sub-commands are given, the help and usage information will be displayed
-    parser.print_usage()
 
 
 if __name__ == '__main__':
