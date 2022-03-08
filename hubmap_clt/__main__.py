@@ -147,7 +147,7 @@ def batch_transfer(endpoint_list, globus_endpoint_uuid, local_id, args):
         if os.path.basename(full_path) == "":
             is_directory = True
         if is_directory is False:
-            line = f'"{full_path}" ~/{args.destination}/{each["hubmap_id"]}-{each["uuid"]}/{os.path.basename(full_path)} \n'
+            line = f'"{full_path}" "~/{args.destination}/{each["hubmap_id"]}-{each["uuid"]}/{os.path.basename(full_path)}" \n'
         else:
             if each["specific_path"] != "/":
                 slash_index = full_path.rstrip('/').rfind("/")
@@ -155,7 +155,7 @@ def batch_transfer(endpoint_list, globus_endpoint_uuid, local_id, args):
                 local_dir.replace("/", os.sep)
             else:
                 local_dir = os.sep
-            line = f'"{full_path}" ~/{args.destination}/{each["hubmap_id"]}-{each["uuid"]}/{local_dir.lstrip(os.sep)} --recursive \n'
+            line = f'"{full_path}" "~/{args.destination}/{each["hubmap_id"]}-{each["uuid"]}/{local_dir.lstrip(os.sep)}" --recursive \n'
         temp.write(line)
     temp.seek(0)
     # if running in a linux/posix environment, default folder will be ~/Downloads.
