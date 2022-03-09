@@ -135,13 +135,16 @@ def transfer(args):
             if item["globus_endpoint_uuid"] == each:
                 endpoint_list.append(item)
         batch_transfer(endpoint_list, each, local_id, args)
+    print(f"Globus transfer successfully initiated. Files to be downloaded to {args.destination}. The status of the "
+          f"transfer may be found at https://app.globus.org/activity. For more information, please consult the "
+          f"documentation")
 
 
 # Construct the file used for the globus batch tranfer. Each source endpoint id needs a separate globus transfer.
 # This also allows each one to have a unique task id which is relayed back to the user. A temporary file is created
 # and lines from the incoming manifest file are transformed into how they are needed by globus
 def batch_transfer(endpoint_list, globus_endpoint_uuid, local_id, args):
-    temp = tempfile.NamedTemporaryFile(mode='w+t')
+    temp = tempfile.NamedTemporaryFile(mode='w+t', delete=False)
     for each in endpoint_list:
         is_directory = False
         # We use "/" rather than os.sep because the file system for globus always uses "/"
@@ -166,11 +169,9 @@ def batch_transfer(endpoint_list, globus_endpoint_uuid, local_id, args):
     globus_transfer_process = subprocess.Popen(["globus", "transfer", globus_endpoint_uuid, local_id, "--batch",
                                                 temp.name], stdout=subprocess.PIPE)
     globus_transfer = globus_transfer_process.communicate()[0].decode('utf-8')
-    if globus_transfer_process.returncode != 0:
-        print(globus_transfer)
-        sys.exit(1)
     print(globus_transfer)
     temp.close()
+    os.unlink(temp.name)
 
 
 # Makes the command "globus whoami". If the user is logged in, their identity will be printed. If they are not
