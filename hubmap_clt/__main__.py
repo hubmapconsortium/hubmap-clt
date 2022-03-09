@@ -147,7 +147,7 @@ def batch_transfer(endpoint_list, globus_endpoint_uuid, local_id, args):
         if os.path.basename(full_path) == "":
             is_directory = True
         if is_directory is False:
-            line = f'"{full_path}" "~/{args.destination}/{each["hubmap_id"]}-{each["uuid"]}/{os.path.basename(full_path)}" \n'
+            line = f'"{full_path}" "{os.path.expanduser("~")}{os.sep}{args.destination}{os.sep}{each["hubmap_id"]}-{each["uuid"]}{os.sep}{os.path.basename(full_path)}" \n'
         else:
             if each["specific_path"] != "/":
                 slash_index = full_path.rstrip('/').rfind("/")
@@ -155,11 +155,9 @@ def batch_transfer(endpoint_list, globus_endpoint_uuid, local_id, args):
                 local_dir.replace("/", os.sep)
             else:
                 local_dir = os.sep
-            line = f'"{full_path}" "~/{args.destination}/{each["hubmap_id"]}-{each["uuid"]}/{local_dir.lstrip(os.sep)}" --recursive \n'
+            line = f'"{full_path}" "{os.path.expanduser("~")}{os.sep}{args.destination}{os.sep}{each["hubmap_id"]}-{each["uuid"]}{os.sep}{local_dir.lstrip(os.sep)}" --recursive \n'
         temp.write(line)
     temp.seek(0)
-    # if running in a linux/posix environment, default folder will be ~/Downloads.
-    # if not, don't specify the target directory. Will need to add implementation for other OS's
     globus_transfer_process = subprocess.Popen(["globus", "transfer", globus_endpoint_uuid, local_id, "--batch",
                                                 temp.name], stdout=subprocess.PIPE)
     globus_transfer = globus_transfer_process.communicate()[0].decode('utf-8')
