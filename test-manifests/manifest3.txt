@@ -1,0 +1,4 @@
+dataset_id	file_or_dir_specifier	#header line is ignored
+60ed8e03152b51d5d9c8fc04e20fa5e3 /	#retrieve all files for given dataset uuid
+HBM525.DLPN.575 /ometiffs/VAN0016-LK-202-89-IMS_PosMode_multilayer.ome.tiff	#retrives image file for dataset HBM525.DLPN.575
+HBM525.DLPN.575 /ometiffs/separate/	#retrievs directory of mages files for datase HBM525.DLPN.575

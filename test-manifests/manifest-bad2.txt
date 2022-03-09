@@ -1,0 +1,2 @@
+654418415bed5ecb9596b17a0320a2c6 / #retrieves all files for given dataset uuid
+HBM455.XGQZ.542 /rawMicroscopy/VAN0009-LK-102-7-AF_preIMS_unregistered.czi	#retrieves czi file for dataset HBM455.XGQZ.542
