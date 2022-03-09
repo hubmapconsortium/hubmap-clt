@@ -13,6 +13,8 @@ from pathlib import Path
 INGEST_DEV_WEBSERVICE_URL = "https://ingest.api.hubmapconsortium.org/"
 
 
+# This handles the argument parsing for the command line interface. Business logic is relegated to the individual
+# functions corresponding to each subcommand
 def main():
     # Import help text from file
     p = Path(__file__).with_name("clt-help.txt")
@@ -135,6 +137,9 @@ def transfer(args):
         batch_transfer(endpoint_list, each, local_id, args)
 
 
+# Construct the file used for the globus batch tranfer. Each source endpoint id needs a separate globus transfer.
+# This also allows each one to have a unique task id which is relayed back to the user. A temporary file is created
+# and lines from the incoming manifest file are transformed into how they are needed by globus
 def batch_transfer(endpoint_list, globus_endpoint_uuid, local_id, args):
     temp = tempfile.NamedTemporaryFile(mode='w+t')
     for each in endpoint_list:
@@ -168,9 +173,9 @@ def batch_transfer(endpoint_list, globus_endpoint_uuid, local_id, args):
     temp.close()
 
 
+# Makes the command "globus whoami". If the user is logged in, their identity will be printed. If they are not
+# Logged in, they will be prompted to use the command "hubmap-clt login"
 def whoami(args):
-    # Makes the command "globus whoami". If the user is logged in, their identity will be printed. If they are not
-    # Logged in, they will be prompted to use the command "hubmap-clt login"
     whoami_process = subprocess.Popen(["globus", "whoami"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     whoami_show = whoami_process.communicate()[0].decode('utf-8')
     if whoami_process.returncode == 0:
@@ -179,8 +184,8 @@ def whoami(args):
         print(f"MissingLoginError: Missing login for auth.globus.org, please run \n\n \thubmap-cli login\n")
 
 
+# Forces a login to globus through the default web browser
 def login(args):
-    # Forces a login to globus through the default web browser
     print("You are running 'hubmap-clt login', which should automatically open a browser window for you to login. \n \n")
     login_process = subprocess.Popen(["globus", "login", "--force"], stdout=subprocess.PIPE)
     login_process.wait()
@@ -189,8 +194,8 @@ def login(args):
     login_process.communicate()[0].decode('utf-8')
 
 
+# Logs the user out of globus
 def logout(args):
-    # Logs the user out of globus
     logout_process = subprocess.Popen(["globus", "logout"], stdout=subprocess.PIPE)
     print("Are you sure you want to logout? [y/N]:")
     logout_process.wait()
