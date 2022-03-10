@@ -129,15 +129,21 @@ def transfer(args):
         each["specific_path"] = each_dict[each['id']].strip('"').strip()
         if each["globus_endpoint_uuid"] not in unique_globus_endpoint_ids:
             unique_globus_endpoint_ids.append(each["globus_endpoint_uuid"])
+    at_least_one_success = []
     for each in unique_globus_endpoint_ids:
         endpoint_list = []
         for item in path_json:
             if item["globus_endpoint_uuid"] == each:
                 endpoint_list.append(item)
-        batch_transfer(endpoint_list, each, local_id, args)
-    print(f"Globus transfer successfully initiated. Files to be downloaded to {args.destination}. The status of the "
-          f"transfer may be found at https://app.globus.org/activity. For more information, please consult the "
-          f"documentation")
+        is_successful = batch_transfer(endpoint_list, each, local_id, args)
+        if is_successful:
+            at_least_one_success.append(is_successful)
+    if len(at_least_one_success) > 0:
+        destination = args.destination.replace("\\", os.sep)
+        destination = destination.replace("/", os.sep)
+        print(f"Globus transfer successfully initiated. Files to be downloaded to {destination}. The status of the "
+              f"transfer may be found at https://app.globus.org/activity. For more information, please consult the "
+              f"documentation")
 
 
 # Construct the file used for the globus batch tranfer. Each source endpoint id needs a separate globus transfer.
@@ -145,6 +151,9 @@ def transfer(args):
 # and lines from the incoming manifest file are transformed into how they are needed by globus
 def batch_transfer(endpoint_list, globus_endpoint_uuid, local_id, args):
     temp = tempfile.NamedTemporaryFile(mode='w+t', delete=False)
+    user_root = os.path.expanduser("~")
+    if os.name == 'nt':
+        user_root = user_root[3:]
     for each in endpoint_list:
         is_directory = False
         # We use "/" rather than os.sep because the file system for globus always uses "/"
@@ -155,15 +164,15 @@ def batch_transfer(endpoint_list, globus_endpoint_uuid, local_id, args):
         if os.path.basename(full_path) == "":
             is_directory = True
         if is_directory is False:
-            line = f'"{full_path}" "{os.path.expanduser("~")}{os.sep}{args.destination}{os.sep}{each["hubmap_id"]}-{each["uuid"]}{os.sep}{os.path.basename(full_path)}" \n'
+            line = f'"{full_path}" "{user_root}/{args.destination}/{each["hubmap_id"]}-{each["uuid"]}/{os.path.basename(full_path)}" \n'
         else:
             if each["specific_path"] != "/":
                 slash_index = full_path.rstrip('/').rfind("/")
                 local_dir = full_path[slash_index:].rstrip().rstrip('/')
-                local_dir.replace("/", os.sep)
             else:
-                local_dir = os.sep
-            line = f'"{full_path}" "{os.path.expanduser("~")}{os.sep}{args.destination}{os.sep}{each["hubmap_id"]}-{each["uuid"]}{os.sep}{local_dir.lstrip(os.sep)}" --recursive \n'
+                local_dir = "/"
+            line = f'"{full_path}" "{user_root}/{args.destination}/{each["hubmap_id"]}-{each["uuid"]}/{local_dir.lstrip("/")}" --recursive \n'
+        line = line.replace("\\", "/")
         temp.write(line)
     temp.seek(0)
     globus_transfer_process = subprocess.Popen(["globus", "transfer", globus_endpoint_uuid, local_id, "--batch",
@@ -172,6 +181,9 @@ def batch_transfer(endpoint_list, globus_endpoint_uuid, local_id, args):
     print(globus_transfer)
     temp.close()
     os.unlink(temp.name)
+    if globus_transfer_process.returncode != 0:
+        return False
+    return True
 
 
 # Makes the command "globus whoami". If the user is logged in, their identity will be printed. If they are not
@@ -183,7 +195,6 @@ def whoami(args):
         print(whoami_show)
     else:
         print(f"MissingLoginError: Missing login for auth.globus.org, please run \n\n \thubmap-cli login\n")
-
 
 # Forces a login to globus through the default web browser
 def login(args):
