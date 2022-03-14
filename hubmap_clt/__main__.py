@@ -151,9 +151,6 @@ def transfer(args):
 # and lines from the incoming manifest file are transformed into how they are needed by globus
 def batch_transfer(endpoint_list, globus_endpoint_uuid, local_id, args):
     temp = tempfile.NamedTemporaryFile(mode='w+t', delete=False)
-    user_root = os.path.expanduser("~")
-    if os.name == 'nt':
-        user_root = user_root[3:]
     for each in endpoint_list:
         is_directory = False
         # We use "/" rather than os.sep because the file system for globus always uses "/"
@@ -164,14 +161,14 @@ def batch_transfer(endpoint_list, globus_endpoint_uuid, local_id, args):
         if os.path.basename(full_path) == "":
             is_directory = True
         if is_directory is False:
-            line = f'"{full_path}" "{user_root}/{args.destination}/{each["hubmap_id"]}-{each["uuid"]}/{os.path.basename(full_path)}" \n'
+            line = f'"{full_path}" "~/{args.destination}/{each["hubmap_id"]}-{each["uuid"]}/{os.path.basename(full_path)}" \n'
         else:
             if each["specific_path"] != "/":
                 slash_index = full_path.rstrip('/').rfind("/")
                 local_dir = full_path[slash_index:].rstrip().rstrip('/')
             else:
                 local_dir = "/"
-            line = f'"{full_path}" "{user_root}/{args.destination}/{each["hubmap_id"]}-{each["uuid"]}/{local_dir.lstrip("/")}" --recursive \n'
+            line = f'"{full_path}" "~/{args.destination}/{each["hubmap_id"]}-{each["uuid"]}/{local_dir.lstrip("/")}" --recursive \n'
         line = line.replace("\\", "/")
         temp.write(line)
     temp.seek(0)
