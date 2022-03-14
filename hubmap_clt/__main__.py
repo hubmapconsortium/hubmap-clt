@@ -137,13 +137,15 @@ def transfer(args):
                 endpoint_list.append(item)
         is_successful = batch_transfer(endpoint_list, each, local_id, args)
         if is_successful:
-            at_least_one_success.append(is_successful)
+            at_least_one_success.append(each)
     if len(at_least_one_success) > 0:
         destination = args.destination.replace("\\", os.sep)
         destination = destination.replace("/", os.sep)
-        print(f"Globus transfer successfully initiated. Files to be downloaded to {destination}. The status of the "
-              f"transfer may be found at https://app.globus.org/activity. For more information, please consult the "
-              f"documentation")
+        print(f"Globus transfer successfully initiated. Files to be downloaded to {destination} from endpoint(s):")
+        for endpoint in at_least_one_success:
+            print(f"\t{endpoint}")
+        print(f"\nThe status of the transfer(s) may be found at https://app.globus.org/activity. For more information,"
+              f" please consult the documentation")
 
 
 # Construct the file used for the globus batch tranfer. Each source endpoint id needs a separate globus transfer.
@@ -153,33 +155,36 @@ def batch_transfer(endpoint_list, globus_endpoint_uuid, local_id, args):
     temp = tempfile.NamedTemporaryFile(mode='w+t', delete=False)
     for each in endpoint_list:
         is_directory = False
+        destination = args.destination.replace("\\", "/")
         # We use "/" rather than os.sep because the file system for globus always uses "/"
         if each["specific_path"] == "/":
             full_path = each["rel_path"] + "/"
         else:
-            full_path = each["rel_path"] + "/" + each["specific_path"].lstrip("/")
+            full_path = each["rel_path"].replace("\\", "/") + "/" + each["specific_path"].lstrip("/")
         if os.path.basename(full_path) == "":
             is_directory = True
         if is_directory is False:
-            line = f'"{full_path}" "~/{args.destination}/{each["hubmap_id"]}-{each["uuid"]}/{os.path.basename(full_path)}" \n'
+            line = f'"{full_path}" "~/{destination}/{each["hubmap_id"]}-{each["uuid"]}/{os.path.basename(full_path)}" \n'
         else:
             if each["specific_path"] != "/":
                 slash_index = full_path.rstrip('/').rfind("/")
                 local_dir = full_path[slash_index:].rstrip().rstrip('/')
             else:
                 local_dir = "/"
-            line = f'"{full_path}" "~/{args.destination}/{each["hubmap_id"]}-{each["uuid"]}/{local_dir.lstrip("/")}" --recursive \n'
+            line = f'"{full_path}" "~/{destination}/{each["hubmap_id"]}-{each["uuid"]}/{local_dir.lstrip("/")}" --recursive \n'
         line = line.replace("\\", "/")
         temp.write(line)
     temp.seek(0)
     globus_transfer_process = subprocess.Popen(["globus", "transfer", globus_endpoint_uuid, local_id, "--batch",
                                                 temp.name], stdout=subprocess.PIPE)
     globus_transfer = globus_transfer_process.communicate()[0].decode('utf-8')
-    print(globus_transfer)
     temp.close()
     os.unlink(temp.name)
     if globus_transfer_process.returncode != 0:
+        print(f"Transfer failure for endpoint with ID {globus_endpoint_uuid}")
+        print(globus_transfer)
         return False
+    print(globus_transfer)
     return True
 
 
