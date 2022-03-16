@@ -141,7 +141,10 @@ def transfer(args):
     if len(at_least_one_success) > 0:
         destination = args.destination.replace("\\", os.sep)
         destination = destination.replace("/", os.sep)
-        print(f"Globus transfer successfully initiated. Files to be downloaded to {destination} from endpoint(s):")
+        print(f"Globus transfer successfully initiated. Files to be downloaded to <Home-Folder>/{destination} where "
+              f"Home-Folder is the default download\ndirectory designated by Globus Connect Personal. "
+              f"For instructions on how to view the current GCP download directory, visit:\n"
+              f"softwaredocs.hubmapconsortium.org/clt. \n\nDownloading from endpoint(s): ")
         for endpoint in at_least_one_success:
             print(f"\t{endpoint}")
         print(f"\nThe status of the transfer(s) may be found at https://app.globus.org/activity. For more information,"
