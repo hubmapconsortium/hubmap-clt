@@ -80,7 +80,7 @@ def transfer(args):
             if substring == "True":
                 endpoint_connected = True
     if endpoint_connected is False:
-        print(f"The endpoint {local_id} is not active. Please consult the Globus Connect documentation  \n "
+        print(f"The endpoint {local_id} \nis not active. Please consult the Globus Connect documentation  \n"
               f"to start the local endpoint. Once the endpoint is connected, try again")
         sys.exit(1)
 
