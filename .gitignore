@@ -131,3 +131,6 @@ dmypy.json
 #ignore PyCharm files
 .idea/
 ../.idea/
+
+#ignore Python virtual environment used for testing
+test-manifests/virt-env
