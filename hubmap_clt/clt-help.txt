@@ -50,5 +50,3 @@ dataset_id	file_or_dir_specifier	#header line is ignored
 HBM525.DLPN.575 /ometiffs/VAN0016-LK-202-89-IMS_PosMode_multilayer.ome.tiff #retrives image file for dataset HBM525.DLPN.575
 HBM525.DLPN.575 /ometiffs/separate/	#retrievs directory of mages files for dataset HBM525.DLPN.575
 
-
-
