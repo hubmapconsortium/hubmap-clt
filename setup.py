@@ -11,7 +11,7 @@ setup(
     name='hubmap-clt',
     description='A command line interface to download multiple files and directories from Globus file transfer '
                 'service using a manifest file.',
-    version='1.1.1',
+    version='1.1.2',
     packages=['hubmap_clt'],
     python_requires='>=3.6',
     entry_points='''

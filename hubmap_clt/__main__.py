@@ -14,6 +14,7 @@ from pathlib import Path
 INGEST_DEV_WEBSERVICE_URL = "https://ingest.api.hubmapconsortium.org/"
 version = pkg_resources.require("hubmap-clt")[0].version
 
+
 # This handles the argument parsing for the command line interface. Business logic is relegated to the individual
 # functions corresponding to each subcommand
 def main():
