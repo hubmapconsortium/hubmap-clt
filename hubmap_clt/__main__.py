@@ -6,12 +6,13 @@ import subprocess
 import sys
 import requests
 import tempfile
+import pkg_resources
 from os.path import exists
 from pathlib import Path
 
 # Constants
 INGEST_DEV_WEBSERVICE_URL = "https://ingest.api.hubmapconsortium.org/"
-
+version = pkg_resources.require("hubmap-clt")[0].version
 
 # This handles the argument parsing for the command line interface. Business logic is relegated to the individual
 # functions corresponding to each subcommand
@@ -43,6 +44,9 @@ def main():
     if len(sys.argv) == 1 or '-h' in sys.argv or '--help' in sys.argv:
         print("usage: ", end="")
         print(help_text)
+        sys.exit(0)
+    if '-v' in sys.argv or '--version' in sys.argv:
+        print(f"version: {version}")
         sys.exit(0)
     args = parser.parse_args()
     args.func(args)

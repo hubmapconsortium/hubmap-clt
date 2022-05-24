@@ -25,7 +25,9 @@ Commands: One of the following commands is required:
 
 -h or --help  Show this help message.
 
--d or --destionation	Manually select a download location within the user's
+-v or --version Show current installed version of hubmap-clt.
+
+-d or --destination	Manually select a download location within the user's
                         home direcotry. For example:
                           'hubmap-clt transfer manifest-file -d Desktop'
 			will download to the user's Desktop directory. The 
