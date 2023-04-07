@@ -130,7 +130,7 @@ def transfer(args):
         for item in manifest_list:
             if each['id'] in item.keys():
                 each_dict = item
-                manifest_list.remove(item)
+                break
         each["specific_path"] = each_dict[each['id']].strip('"').strip()
         if each["globus_endpoint_uuid"] not in unique_globus_endpoint_ids:
             unique_globus_endpoint_ids.append(each["globus_endpoint_uuid"])
