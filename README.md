@@ -1,5 +1,7 @@
 # hubmap-clt
 
+## This Repo has moved to the [x-atlas-consortia/clt](https://github.com/x-atlas-consortia/clt) repository.  This repository is no longer maintained.
+
 ---
 
 A command line interface to download multiple files and directories from the Globus file transfer service.
